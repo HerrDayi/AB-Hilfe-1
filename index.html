@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hilfe 1: Ableitungs-Trainer</title>
+    <style>
+        :root {
+            --primary: #143264;
+            --math-f: #000000;    /* Schwarz für f(x) */
+            --math-f-prime: #0ea5e9; /* Blau für f'(x) */
+            --sketch: #dc2626;    /* Rot für die eigene Skizze */
+            --bg: #f8fafc;
+            --border: #cbd5e1;
+        }
+
+        html, body {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            font-family: -apple-system, sans-serif; background: var(--bg);
+            display: flex; flex-direction: column; overflow: hidden;
+            touch-action: none; /* Verhindert Scrolling beim Zeichnen */
+        }
+
+        .header {
+            padding: 15px; text-align: center; background: white;
+            border-bottom: 2px solid var(--primary); flex-shrink: 0;
+        }
+        .header h2 { margin: 0; font-size: 1.3rem; color: var(--primary); }
+        .header p { margin: 5px 0 0 0; font-size: 0.9rem; color: #64748b; }
+
+        .toolbar {
+            display: flex; justify-content: center; gap: 10px; padding: 10px;
+            background: #fff; border-bottom: 1px solid var(--border); flex-shrink: 0;
+        }
+
+        .btn {
+            padding: 10px 15px; border-radius: 8px; border: 1px solid var(--border);
+            background: white; font-weight: bold; cursor: pointer; font-size: 0.9rem;
+        }
+        .btn-clear { color: var(--danger); }
+        .btn-check { background: var(--primary); color: white; border: none; }
+        .btn:active { transform: scale(0.95); opacity: 0.8; }
+
+        .canvas-container {
+            position: relative; flex-grow: 1; margin: 10px;
+            background: white; border: 1px solid var(--border); border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow: hidden;
+        }
+
+        canvas {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        }
+
+        #ui-layer { z-index: 10; pointer-events: none; } /* Anzeigen von Texten */
+        #sketch-layer { z-index: 5; cursor: crosshair; pointer-events: auto; }
+        #plot-layer { z-index: 1; } /* Der mathematische Hintergrund */
+
+        .legend {
+            position: absolute; bottom: 10px; left: 10px; z-index: 11;
+            background: rgba(255,255,255,0.8); padding: 5px 10px; border-radius: 5px;
+            font-size: 0.8rem; display: flex; gap: 15px; pointer-events: none;
+        }
+        .legend-item { display: flex; align-items: center; gap: 5px; }
+        .color-box { width: 12px; height: 12px; border-radius: 2px; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h2>Hilfe 1: Ableitungen skizzieren</h2>
+    <p>Zeichne den Verlauf von f'(x) mit dem Finger ein.</p>
+</div>
+
+<div class="toolbar">
+    <button class="btn btn-clear" onclick="clearSketch()">🗑 Löschen</button>
+    <button class="btn" onclick="toggleF()">f(x) an/aus</button>
+    <button class="btn btn-check" id="checkBtn" onclick="toggleSolution()">Lösung prüfen</button>
+</div>
+
+<div class="canvas-container" id="container">
+    <canvas id="plot-layer"></canvas>
+    <canvas id="sketch-layer"></canvas>
+    <div class="legend">
+        <div class="legend-item"><div class="color-box" style="background: black;"></div> f(x)</div>
+        <div class="legend-item"><div class="color-box" style="background: var(--sketch);"></div> Deine Skizze</div>
+        <div id="solutionLegend" class="legend-item" style="display:none;"><div class="color-box" style="background: var(--math-f-prime);"></div> Lösung f'(x)</div>
+    </div>
+</div>
+
+<script>
+    const container = document.getElementById('container');
+    const plotCanvas = document.getElementById('plot-layer');
+    const sketchCanvas = document.getElementById('sketch-layer');
+    const pCtx = plotCanvas.getContext('2d');
+    const sCtx = sketchCanvas.getContext('2d');
+
+    let showSolution = false;
+    let showF = true;
+    let isDrawing = false;
+
+    // Mathematische Funktion f(x) = 0.25x^3 - 0.75x^2 + 2 (aus deinem AB)
+    const f = (x) => 0.25 * Math.pow(x, 3) - 0.75 * Math.pow(x, 2) + 2;
+    // Ableitung f'(x) = 0.75x^2 - 1.5x
+    const df = (x) => 0.75 * Math.pow(x, 2) - 1.5 * x;
+
+    // Koordinatensystem Einstellungen
+    const config = {
+        xmin: -3, xmax: 5,
+        ymin: -3, ymax: 5,
+        step: 1
+    };
+
+    function resize() {
+        plotCanvas.width = sketchCanvas.width = container.clientWidth;
+        plotCanvas.height = sketchCanvas.height = container.clientHeight;
+        drawBackground();
+    }
+
+    // Umrechnung Mathe-Koordinaten -> Pixel
+    function toPX(x, y) {
+        const px = (x - config.xmin) / (config.xmax - config.xmin) * plotCanvas.width;
+        const py = plotCanvas.height - (y - config.ymin) / (config.ymax - config.ymin) * plotCanvas.height;
+        return { x: px, y: py };
+    }
+
+    function drawBackground() {
+        pCtx.clearRect(0, 0, plotCanvas.width, plotCanvas.height);
+        
+        // Gitter zeichnen
+        pCtx.strokeStyle = "#e2e8f0";
+        pCtx.lineWidth = 1;
+        for(let x = config.xmin; x <= config.xmax; x++) {
+            const p = toPX(x, 0);
+            pCtx.beginPath(); pCtx.moveTo(p.x, 0); pCtx.lineTo(p.x, plotCanvas.height); pCtx.stroke();
+        }
+        for(let y = config.ymin; y <= config.ymax; y++) {
+            const p = toPX(0, y);
+            pCtx.beginPath(); pCtx.moveTo(0, p.y); pCtx.lineTo(plotCanvas.width, p.y); pCtx.stroke();
+        }
+
+        // Achsen
+        pCtx.strokeStyle = "#94a3b8";
+        pCtx.lineWidth = 2;
+        const origin = toPX(0, 0);
+        pCtx.beginPath(); pCtx.moveTo(0, origin.y); pCtx.lineTo(plotCanvas.width, origin.y); pCtx.stroke(); // x-Achse
+        pCtx.beginPath(); pCtx.moveTo(origin.x, 0); pCtx.lineTo(origin.x, plotCanvas.height); pCtx.stroke(); // y-Achse
+
+        // Funktion f(x) plotten
+        if (showF) {
+            pCtx.strokeStyle = "black";
+            pCtx.lineWidth = 3;
+            pCtx.beginPath();
+            for (let x = config.xmin; x <= config.xmax; x += 0.1) {
+                const p = toPX(x, f(x));
+                if (x === config.xmin) pCtx.moveTo(p.x, p.y); else pCtx.lineTo(p.x, p.y);
+            }
+            pCtx.stroke();
+        }
+
+        // Lösung f'(x) plotten
+        if (showSolution) {
+            pCtx.strokeStyle = "#0ea5e9";
+            pCtx.setLineDash([10, 5]);
+            pCtx.lineWidth = 4;
+            pCtx.beginPath();
+            for (let x = config.xmin; x <= config.xmax; x += 0.1) {
+                const p = toPX(x, df(x));
+                if (x === config.xmin) pCtx.moveTo(p.x, p.y); else pCtx.lineTo(p.x, p.y);
+            }
+            pCtx.stroke();
+            pCtx.setLineDash([]);
+        }
+    }
+
+    // --- Zeichen-Logik ---
+    function startDrawing(e) {
+        isDrawing = true;
+        sCtx.beginPath();
+        const pos = getPos(e);
+        sCtx.moveTo(pos.x, pos.y);
+    }
+
+    function draw(e) {
+        if (!isDrawing) return;
+        const pos = getPos(e);
+        sCtx.lineTo(pos.x, pos.y);
+        sCtx.strokeStyle = "#dc2626";
+        sCtx.lineWidth = 3;
+        sCtx.lineCap = "round";
+        sCtx.stroke();
+    }
+
+    function stopDrawing() { isDrawing = false; }
+
+    function getPos(e) {
+        const rect = sketchCanvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    // --- UI Aktionen ---
+    function clearSketch() {
+        sCtx.clearRect(0, 0, sketchCanvas.width, sketchCanvas.height);
+    }
+
+    function toggleSolution() {
+        showSolution = !showSolution;
+        document.getElementById('solutionLegend').style.display = showSolution ? 'flex' : 'none';
+        document.getElementById('checkBtn').innerText = showSolution ? 'Lösung verstecken' : 'Lösung prüfen';
+        drawBackground();
+    }
+
+    function toggleF() {
+        showF = !showF;
+        drawBackground();
+    }
+
+    // Event Listener
+    sketchCanvas.addEventListener('mousedown', startDrawing);
+    sketchCanvas.addEventListener('mousemove', draw);
+    window.addEventListener('mouseup', stopDrawing);
+    sketchCanvas.addEventListener('touchstart', startDrawing);
+    sketchCanvas.addEventListener('touchmove', draw);
+    sketchCanvas.addEventListener('touchend', stopDrawing);
+
+    window.addEventListener('resize', resize);
+    window.onload = resize;
+
+</script>
+</body>
+</html>
