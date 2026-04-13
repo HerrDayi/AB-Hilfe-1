@@ -3,230 +3,300 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hilfe 1: Ableitungs-Trainer</title>
+    <title>Hilfe 1: Ableitung zeichnen</title>
+    
     <style>
         :root {
             --primary: #143264;
-            --math-f: #000000;    /* Schwarz für f(x) */
-            --math-f-prime: #0ea5e9; /* Blau für f'(x) */
-            --sketch: #dc2626;    /* Rot für die eigene Skizze */
-            --bg: #f8fafc;
-            --border: #cbd5e1;
+            --math-blue: #0ea5e9;
+            --danger: #dc2626;
+            --bg: #f1f5f9;
         }
 
-        html, body {
-            margin: 0; padding: 0; width: 100%; height: 100%;
-            font-family: -apple-system, sans-serif; background: var(--bg);
-            display: flex; flex-direction: column; overflow: hidden;
-            touch-action: none; /* Verhindert Scrolling beim Zeichnen */
+        /* Verhindert das "Gummiband"-Scrollen auf dem iPad */
+        html, body { 
+            position: fixed; 
+            overflow: hidden; 
+            width: 100%; height: 100%; 
         }
 
-        .header {
-            padding: 15px; text-align: center; background: white;
+        body {
+            font-family: -apple-system, sans-serif;
+            background-color: var(--bg);
+            margin: 0; padding: 0;
+            display: flex; flex-direction: column;
+        }
+
+        .header { 
+            padding: 15px; text-align: center; background: white; 
             border-bottom: 2px solid var(--primary); flex-shrink: 0;
         }
-        .header h2 { margin: 0; font-size: 1.3rem; color: var(--primary); }
-        .header p { margin: 5px 0 0 0; font-size: 0.9rem; color: #64748b; }
 
         .toolbar {
-            display: flex; justify-content: center; gap: 10px; padding: 10px;
-            background: #fff; border-bottom: 1px solid var(--border); flex-shrink: 0;
+            display: flex; gap: 15px; padding: 12px; background: white;
+            justify-content: center; border-bottom: 1px solid #cbd5e1;
+            flex-shrink: 0;
         }
 
-        .btn {
-            padding: 10px 15px; border-radius: 8px; border: 1px solid var(--border);
-            background: white; font-weight: bold; cursor: pointer; font-size: 0.9rem;
-        }
-        .btn-clear { color: var(--danger); }
-        .btn-check { background: var(--primary); color: white; border: none; }
-        .btn:active { transform: scale(0.95); opacity: 0.8; }
-
-        .canvas-container {
-            position: relative; flex-grow: 1; margin: 10px;
-            background: white; border: 1px solid var(--border); border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow: hidden;
+        button {
+            padding: 12px 24px; border: 1px solid #cbd5e1; border-radius: 10px;
+            background: #f8fafc; font-size: 1.1rem; font-weight: 600;
+            min-height: 50px; touch-action: manipulation; cursor: pointer;
         }
 
-        canvas {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        button.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .btn-sol { color: var(--math-blue); border-color: var(--math-blue); }
+        .btn-sol:disabled { opacity: 0.3; }
+
+        /* Das Zeichenfenster - Optimiert für Hochformat */
+        .workspace-wrapper {
+            position: relative; 
+            flex-grow: 1; 
+            background: white; 
+            touch-action: none; /* WICHTIG: Verhindert iPad-Gesten beim Zeichnen */
         }
 
-        #ui-layer { z-index: 10; pointer-events: none; } /* Anzeigen von Texten */
-        #sketch-layer { z-index: 5; cursor: crosshair; pointer-events: auto; }
-        #plot-layer { z-index: 1; } /* Der mathematische Hintergrund */
-
-        .legend {
-            position: absolute; bottom: 10px; left: 10px; z-index: 11;
-            background: rgba(255,255,255,0.8); padding: 5px 10px; border-radius: 5px;
-            font-size: 0.8rem; display: flex; gap: 15px; pointer-events: none;
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        #solCanvas { opacity: 0; transition: opacity 0.4s; pointer-events: none; }
+        
+        .labels {
+            position: absolute; left: 10px; font-weight: bold; font-size: 1.1rem;
+            pointer-events: none;
         }
-        .legend-item { display: flex; align-items: center; gap: 5px; }
-        .color-box { width: 12px; height: 12px; border-radius: 2px; }
     </style>
 </head>
 <body>
 
 <div class="header">
-    <h2>Hilfe 1: Ableitungen skizzieren</h2>
-    <p>Zeichne den Verlauf von f'(x) mit dem Finger ein.</p>
+    <h2 style="margin:0; font-size: 1.2rem; color: var(--primary);">Fahrsimulation: Steigung & Ableitung</h2>
+    <p style="margin:4px 0 0 0; font-size:0.9rem; color:#64748b;">Beobachte oben die Tangente und zeichne unten den Graphen von f'(x).</p>
 </div>
 
 <div class="toolbar">
-    <button class="btn btn-clear" onclick="clearSketch()">🗑 Löschen</button>
-    <button class="btn" onclick="toggleF()">f(x) an/aus</button>
-    <button class="btn btn-check" id="checkBtn" onclick="toggleSolution()">Lösung prüfen</button>
+    <button id="btnPen" class="active" onclick="setMode('pen')">✏️ Zeichnen</button>
+    <button id="btnErase" onclick="setMode('erase')">🧽 Radierer</button>
+    <button onclick="clearDrawing()">🗑️ Löschen</button>
+    <button id="btnSol" class="btn-sol" onclick="toggleSolution()" disabled>Lösung f'(x)</button>
 </div>
 
-<div class="canvas-container" id="container">
-    <canvas id="plot-layer"></canvas>
-    <canvas id="sketch-layer"></canvas>
-    <div class="legend">
-        <div class="legend-item"><div class="color-box" style="background: black;"></div> f(x)</div>
-        <div class="legend-item"><div class="color-box" style="background: var(--sketch);"></div> Deine Skizze</div>
-        <div id="solutionLegend" class="legend-item" style="display:none;"><div class="color-box" style="background: var(--math-f-prime);"></div> Lösung f'(x)</div>
-    </div>
+<div class="workspace-wrapper" id="workspace">
+    <canvas id="bgCanvas"></canvas>
+    <canvas id="drawCanvas"></canvas>
+    <canvas id="solCanvas"></canvas>
+    <canvas id="cursorCanvas"></canvas>
+    
+    <div id="labelF" class="labels" style="top: 15px;">Graph von f(x)</div>
+    <div id="labelDF" class="labels" style="color: var(--math-blue);">Graph von f'(x)</div>
 </div>
 
 <script>
-    const container = document.getElementById('container');
-    const plotCanvas = document.getElementById('plot-layer');
-    const sketchCanvas = document.getElementById('sketch-layer');
-    const pCtx = plotCanvas.getContext('2d');
-    const sCtx = sketchCanvas.getContext('2d');
+    const workspace = document.getElementById('workspace');
+    const canvases = ['bgCanvas', 'drawCanvas', 'solCanvas', 'cursorCanvas'];
+    const ctxs = {};
+    canvases.forEach(id => ctxs[id] = document.getElementById(id).getContext('2d'));
 
-    let showSolution = false;
-    let showF = true;
-    let isDrawing = false;
+    let width, height, graphH, dpr;
+    const pad = 45, gap = 80; 
+    
+    // Die mathematischen Grenzen (wie auf deinem Arbeitsblatt)
+    const xMin = -2.5, xMax = 4.5;
+    const boundsF = { min: -2, max: 4 };
+    const boundsDF = { min: -3, max: 3 };
 
-    // Mathematische Funktion f(x) = 0.25x^3 - 0.75x^2 + 2 (aus deinem AB)
+    // Die Funktionen
     const f = (x) => 0.25 * Math.pow(x, 3) - 0.75 * Math.pow(x, 2) + 2;
-    // Ableitung f'(x) = 0.75x^2 - 1.5x
     const df = (x) => 0.75 * Math.pow(x, 2) - 1.5 * x;
 
-    // Koordinatensystem Einstellungen
-    const config = {
-        xmin: -3, xmax: 5,
-        ymin: -3, ymax: 5,
-        step: 1
-    };
+    let isDrawing = false, mode = 'pen', solVisible = false, lastX, lastY, hasAttempted = false;
+
+    function setupCanvas(canvas) {
+        dpr = window.devicePixelRatio || 1;
+        const rect = workspace.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+        return { w: rect.width, h: rect.height };
+    }
+
+    function mapX(x) { return pad + ((x - xMin) / (xMax - xMin)) * (width - 2 * pad); }
+    function unmapX(px) { return xMin + ((px - pad) / (width - 2 * pad)) * (xMax - xMin); }
+    function mapY(y, bounds, offset) { 
+        let fraction = (y - bounds.min) / (bounds.max - bounds.min);
+        return (offset + graphH) - fraction * graphH;
+    }
 
     function resize() {
-        plotCanvas.width = sketchCanvas.width = container.clientWidth;
-        plotCanvas.height = sketchCanvas.height = container.clientHeight;
-        drawBackground();
-    }
-
-    // Umrechnung Mathe-Koordinaten -> Pixel
-    function toPX(x, y) {
-        const px = (x - config.xmin) / (config.xmax - config.xmin) * plotCanvas.width;
-        const py = plotCanvas.height - (y - config.ymin) / (config.ymax - config.ymin) * plotCanvas.height;
-        return { x: px, y: py };
-    }
-
-    function drawBackground() {
-        pCtx.clearRect(0, 0, plotCanvas.width, plotCanvas.height);
+        const size = setupCanvas(document.getElementById('bgCanvas'));
+        width = size.w; height = size.h;
+        canvases.forEach(id => setupCanvas(document.getElementById(id)));
         
-        // Gitter zeichnen
-        pCtx.strokeStyle = "#e2e8f0";
-        pCtx.lineWidth = 1;
-        for(let x = config.xmin; x <= config.xmax; x++) {
-            const p = toPX(x, 0);
-            pCtx.beginPath(); pCtx.moveTo(p.x, 0); pCtx.lineTo(p.x, plotCanvas.height); pCtx.stroke();
-        }
-        for(let y = config.ymin; y <= config.ymax; y++) {
-            const p = toPX(0, y);
-            pCtx.beginPath(); pCtx.moveTo(0, p.y); pCtx.lineTo(plotCanvas.width, p.y); pCtx.stroke();
-        }
-
-        // Achsen
-        pCtx.strokeStyle = "#94a3b8";
-        pCtx.lineWidth = 2;
-        const origin = toPX(0, 0);
-        pCtx.beginPath(); pCtx.moveTo(0, origin.y); pCtx.lineTo(plotCanvas.width, origin.y); pCtx.stroke(); // x-Achse
-        pCtx.beginPath(); pCtx.moveTo(origin.x, 0); pCtx.lineTo(origin.x, plotCanvas.height); pCtx.stroke(); // y-Achse
-
-        // Funktion f(x) plotten
-        if (showF) {
-            pCtx.strokeStyle = "black";
-            pCtx.lineWidth = 3;
-            pCtx.beginPath();
-            for (let x = config.xmin; x <= config.xmax; x += 0.1) {
-                const p = toPX(x, f(x));
-                if (x === config.xmin) pCtx.moveTo(p.x, p.y); else pCtx.lineTo(p.x, p.y);
-            }
-            pCtx.stroke();
-        }
-
-        // Lösung f'(x) plotten
-        if (showSolution) {
-            pCtx.strokeStyle = "#0ea5e9";
-            pCtx.setLineDash([10, 5]);
-            pCtx.lineWidth = 4;
-            pCtx.beginPath();
-            for (let x = config.xmin; x <= config.xmax; x += 0.1) {
-                const p = toPX(x, df(x));
-                if (x === config.xmin) pCtx.moveTo(p.x, p.y); else pCtx.lineTo(p.x, p.y);
-            }
-            pCtx.stroke();
-            pCtx.setLineDash([]);
-        }
+        graphH = (height - 2 * pad - gap) / 2.1; 
+        
+        // Positioniere das untere Label dynamisch
+        document.getElementById('labelDF').style.top = (pad + graphH + gap/1.5) + 'px';
+        
+        drawAll();
     }
 
-    // --- Zeichen-Logik ---
-    function startDrawing(e) {
+    function drawGrid(ctx, bounds, offset) {
+        ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1; ctx.font = '14px sans-serif'; ctx.fillStyle = '#64748b';
+        
+        // Vertikale Linien (X-Achse)
+        for(let x = Math.ceil(xMin); x <= Math.floor(xMax); x++) {
+            let px = mapX(x);
+            ctx.beginPath(); ctx.moveTo(px, offset); ctx.lineTo(px, offset + graphH); ctx.stroke();
+            ctx.fillText(x, px - 4, offset + graphH + 20);
+        }
+        
+        // Horizontale Linien (Y-Achse)
+        for(let y = bounds.min; y <= bounds.max; y++) {
+            let py = mapY(y, bounds, offset);
+            ctx.beginPath(); ctx.moveTo(pad, py); ctx.lineTo(width - pad, py); ctx.stroke();
+            if(y !== 0) ctx.fillText(y, 15, py + 5);
+        }
+
+        // Hauptachsen fett zeichnen
+        ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2;
+        
+        // X-Achse
+        let y0 = mapY(0, bounds, offset);
+        ctx.beginPath(); ctx.moveTo(pad, y0); ctx.lineTo(width-pad, y0); ctx.stroke();
+        
+        // Y-Achse
+        let px0 = mapX(0);
+        ctx.beginPath(); ctx.moveTo(px0, offset); ctx.lineTo(px0, offset + graphH); ctx.stroke();
+    }
+
+    function drawGraph(ctx, func, bounds, offset, color, isDashed = false) {
+        ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.lineJoin = 'round';
+        if(isDashed) ctx.setLineDash([8, 6]);
+        
+        ctx.beginPath();
+        for(let px = pad; px <= width-pad; px++) {
+            let x = unmapX(px);
+            let py = mapY(func(x), bounds, offset);
+            
+            // Verhindern, dass die Linie aus der Box bricht
+            if(py < offset || py > offset + graphH) continue;
+
+            if(px === pad) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    function drawAll() {
+        // Oberes System: f(x)
+        drawGrid(ctxs.bgCanvas, boundsF, pad);
+        drawGraph(ctxs.bgCanvas, f, boundsF, pad, '#000000');
+        
+        // Unteres System: f'(x) (Lösung versteckt im Hintergrund)
+        let offsetBottom = pad + graphH + gap;
+        drawGrid(ctxs.bgCanvas, boundsDF, offsetBottom);
+        drawGraph(ctxs.solCanvas, df, boundsDF, offsetBottom, '#0ea5e9', true); // Gestricheltes Blau
+    }
+
+    function handleStart(e) {
         isDrawing = true;
-        sCtx.beginPath();
-        const pos = getPos(e);
-        sCtx.moveTo(pos.x, pos.y);
-    }
-
-    function draw(e) {
-        if (!isDrawing) return;
-        const pos = getPos(e);
-        sCtx.lineTo(pos.x, pos.y);
-        sCtx.strokeStyle = "#dc2626";
-        sCtx.lineWidth = 3;
-        sCtx.lineCap = "round";
-        sCtx.stroke();
-    }
-
-    function stopDrawing() { isDrawing = false; }
-
-    function getPos(e) {
-        const rect = sketchCanvas.getBoundingClientRect();
+        const rect = workspace.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        return { x: clientX - rect.left, y: clientY - rect.top };
+        lastX = clientX - rect.left;
+        lastY = clientY - rect.top;
     }
 
-    // --- UI Aktionen ---
-    function clearSketch() {
-        sCtx.clearRect(0, 0, sketchCanvas.width, sketchCanvas.height);
+    function handleMove(e) {
+        const rect = workspace.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const px = clientX - rect.left;
+        const py = clientY - rect.top;
+        
+        ctxs.cursorCanvas.clearRect(0,0,width,height);
+        
+        let x = unmapX(px);
+        
+        // Wenn der Cursor innerhalb der X-Grenzen ist
+        if(x >= xMin && x <= xMax && px >= pad && px <= width-pad) {
+            
+            let yF = mapY(f(x), boundsF, pad);
+            let slope = df(x);
+            
+            // 1. Vertikale Hilfslinie (verbindet beide Graphen)
+            ctxs.cursorCanvas.setLineDash([5,5]); ctxs.cursorCanvas.strokeStyle = "#cbd5e1";
+            ctxs.cursorCanvas.beginPath(); 
+            ctxs.cursorCanvas.moveTo(px, pad); 
+            ctxs.cursorCanvas.lineTo(px, height-pad); 
+            ctxs.cursorCanvas.stroke();
+            ctxs.cursorCanvas.setLineDash([]);
+
+            // 2. Tangente an f(x) zeichnen
+            if(yF >= pad && yF <= pad + graphH) {
+                ctxs.cursorCanvas.strokeStyle = '#dc2626'; ctxs.cursorCanvas.lineWidth = 3;
+                let dx = 1.5; // Breite der Tangente
+                ctxs.cursorCanvas.beginPath();
+                ctxs.cursorCanvas.moveTo(mapX(x-dx), mapY(f(x)-slope*dx, boundsF, pad));
+                ctxs.cursorCanvas.lineTo(mapX(x+dx), mapY(f(x)+slope*dx, boundsF, pad));
+                ctxs.cursorCanvas.stroke();
+                
+                // Roter Punkt auf dem Graphen
+                ctxs.cursorCanvas.fillStyle = '#dc2626'; 
+                ctxs.cursorCanvas.beginPath(); 
+                ctxs.cursorCanvas.arc(px, yF, 6, 0, 7); 
+                ctxs.cursorCanvas.fill();
+            }
+
+            // 3. Zeichnen zulassen (Nur wenn man sich im unteren Bereich befindet)
+            let offsetBottom = pad + graphH + gap;
+            if (isDrawing && py > (offsetBottom - 20)) {
+                const dCtx = ctxs.drawCanvas;
+                dCtx.strokeStyle = mode === 'pen' ? '#dc2626' : 'white';
+                dCtx.lineWidth = mode === 'pen' ? 4 : 30;
+                dCtx.lineCap = 'round'; dCtx.lineJoin = 'round';
+                dCtx.globalCompositeOperation = mode === 'erase' ? 'destination-out' : 'source-over';
+                
+                dCtx.beginPath(); dCtx.moveTo(lastX, lastY); dCtx.lineTo(px, py); dCtx.stroke();
+                
+                if(!hasAttempted && mode === 'pen') {
+                    hasAttempted = true; 
+                    document.getElementById('btnSol').disabled = false;
+                }
+            }
+        }
+        lastX = px; lastY = py;
     }
 
-    function toggleSolution() {
-        showSolution = !showSolution;
-        document.getElementById('solutionLegend').style.display = showSolution ? 'flex' : 'none';
-        document.getElementById('checkBtn').innerText = showSolution ? 'Lösung verstecken' : 'Lösung prüfen';
-        drawBackground();
+    function setMode(m) { 
+        mode = m; 
+        document.getElementById('btnPen').className = m==='pen'?'active':''; 
+        document.getElementById('btnErase').className = m==='erase'?'active':''; 
+    }
+    
+    function clearDrawing() { 
+        ctxs.drawCanvas.clearRect(0,0,width,height); 
+        hasAttempted = false; 
+        document.getElementById('btnSol').disabled = true; 
+        if(solVisible) toggleSolution(); 
+    }
+    
+    function toggleSolution() { 
+        solVisible = !solVisible; 
+        document.getElementById('solCanvas').style.opacity = solVisible ? 1 : 0; 
+        document.getElementById('btnSol').className = solVisible ? 'btn-sol active' : 'btn-sol'; 
     }
 
-    function toggleF() {
-        showF = !showF;
-        drawBackground();
-    }
+    // Event Listener für Maus und Touch
+    workspace.addEventListener('mousedown', handleStart);
+    window.addEventListener('mouseup', () => isDrawing = false);
+    workspace.addEventListener('mousemove', handleMove);
 
-    // Event Listener
-    sketchCanvas.addEventListener('mousedown', startDrawing);
-    sketchCanvas.addEventListener('mousemove', draw);
-    window.addEventListener('mouseup', stopDrawing);
-    sketchCanvas.addEventListener('touchstart', startDrawing);
-    sketchCanvas.addEventListener('touchmove', draw);
-    sketchCanvas.addEventListener('touchend', stopDrawing);
+    workspace.addEventListener('touchstart', (e) => { handleStart(e); e.preventDefault(); }, {passive: false});
+    workspace.addEventListener('touchmove', (e) => { handleMove(e); e.preventDefault(); }, {passive: false});
+    window.addEventListener('touchend', () => isDrawing = false);
 
     window.addEventListener('resize', resize);
     window.onload = resize;
-
 </script>
 </body>
 </html>
